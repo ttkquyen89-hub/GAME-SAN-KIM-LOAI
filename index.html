@@ -1,0 +1,1065 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Chiếc Thuyền Hóa Học: Thợ Săn Kim Loại</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #050510;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            touch-action: none; /* Ngăn chặn cuộn trang trên mobile khi chơi */
+        }
+        
+        #gameCanvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        .ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .panel {
+            background: rgba(10, 20, 40, 0.85);
+            border: 2px solid #00ffff;
+            box-shadow: 0 0 20px #00ffff;
+            padding: 2rem;
+            border-radius: 1rem;
+            text-align: center;
+            pointer-events: auto;
+            color: white;
+            max-width: 90%;
+        }
+
+        .title-3d {
+            font-size: 3.5rem;
+            font-weight: 900;
+            margin-bottom: 1.5rem;
+            color: #E35327; /* Cam gạch đậm */
+            text-shadow: 
+                0px 2px 0px #B43F1C,
+                0px 4px 0px #923215,
+                0px 6px 0px #6A230E,
+                0px 8px 10px rgba(0,0,0,0.8);
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            line-height: 1.2;
+        }
+        @media (max-width: 600px) { .title-3d { font-size: 2.5rem; } }
+
+        .btn-play {
+            background: linear-gradient(180deg, #ff8c00 0%, #e55d00 100%);
+            border: none;
+            padding: 15px 40px;
+            color: white;
+            font-size: 1.5rem;
+            font-weight: bold;
+            border-radius: 15px;
+            cursor: pointer;
+            margin-top: 20px;
+            box-shadow: 0 8px 0 #b34700, 0 15px 20px rgba(0,0,0,0.4);
+            transition: all 0.1s;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .btn-play:active {
+            transform: translateY(8px);
+            box-shadow: 0 0px 0 #b34700, 0 5px 5px rgba(0,0,0,0.4);
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        #hud {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            right: 20px;
+            display: flex;
+            justify-content: space-between;
+            color: white;
+            font-size: 1.5rem;
+            font-weight: bold;
+            text-shadow: 0 0 5px #00ffff;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Khung vẽ chính của game -->
+    <canvas id="gameCanvas"></canvas>
+
+    <!-- UI: Hiển thị Điểm và Mạng -->
+    <div id="hud" class="hidden">
+        <div>ĐIỂM: <span id="scoreDisplay">0</span></div>
+        <div>THỜI GIAN: <span id="timeDisplay" class="text-yellow-300">60s</span></div>
+        <div>MẠNG: <span id="livesDisplay">❤️❤️❤️❤️</span></div>
+    </div>
+
+    <!-- UI: Màn hình Bắt đầu -->
+    <div id="startScreen" class="ui-layer">
+        <div class="panel">
+            <h1 class="title-3d">THỢ SĂN KIM LOẠI LỚP 7/7</h1>
+            <p class="mb-4 text-2xl">Điều khiển chiếc thuyền bay lượn khắp màn hình bằng <b>Chuột</b>, <b>Cảm ứng</b> hoặc <b>Các phím mũi tên</b>.</p>
+            <p class="mb-8 text-2xl">Nhiệm vụ: Nuốt các bong bóng chứa <span class="text-green-400 font-bold">KIM LOẠI</span>.<br>Tránh xa các bong bóng không chứa KIM LOẠI!</p>
+            
+            <button id="startBtn" class="btn-play">BẮT ĐẦU BAY</button>
+        </div>
+    </div>
+
+    <!-- UI: Màn hình Kết thúc -->
+    <div id="gameOverScreen" class="ui-layer hidden">
+        <div class="panel">
+            <h1 class="text-4xl font-extrabold mb-4 text-red-500 drop-shadow-[0_0_10px_rgba(239,68,68,0.8)]">VỠ THUYỀN!</h1>
+            <p class="text-2xl mb-4">Điểm của bạn: <span id="finalScore" class="text-yellow-400 font-bold">0</span></p>
+            <p class="mb-6 text-gray-300" id="gameOverReason">Thuyền của bạn bị hỏng do nuốt quá nhiều Phi Kim!</p>
+            <div class="flex flex-col sm:flex-row gap-4 justify-center">
+                <button id="viewResultsBtn" class="btn-play" style="background: linear-gradient(45deg, #a855f7 0%, #ec4899 100%); box-shadow: 0 0 15px rgba(168, 85, 247, 0.6);">XEM KẾT QUẢ</button>
+                <button id="restartBtn" class="btn-play">CHƠI LẠI</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- UI: Màn hình Xem chi tiết kết quả (Đã mở rộng full màn hình) -->
+    <div id="resultsScreen" class="ui-layer hidden">
+        <div class="panel flex flex-col items-center justify-between !w-[95vw] !h-[95vh] !max-w-[95vw] !p-4 sm:!p-6 overflow-hidden">
+            <h2 class="text-3xl sm:text-4xl font-extrabold mb-1 text-purple-400 drop-shadow-[0_0_8px_rgba(168,85,247,0.8)] shrink-0">CHIẾN LỢI PHẨM</h2>
+            <p class="mb-2 shrink-0 text-lg sm:text-xl">Bạn đã thu thập <span id="totalMetalsCount" class="text-green-400 font-bold text-2xl">0</span> kim loại và né an toàn <span id="dodgedNonMetalsCount" class="text-blue-400 font-bold text-2xl">0</span> phi kim!</p>
+            
+            <!-- Canvas riêng để vẽ chiếc thuyền khổng lồ - Mở rộng chiếm trọn phần không gian giữa -->
+            <div class="w-full flex-grow relative mb-3 border border-cyan-800 rounded-xl bg-black/40 overflow-hidden shadow-inner">
+                <canvas id="resultCanvas" class="absolute inset-0 w-full h-full"></canvas>
+            </div>
+            
+            <!-- Danh sách các kim loại -->
+            <div id="metalsList" class="flex flex-wrap gap-2 justify-center mb-3 shrink-0 max-w-full overflow-y-auto max-h-[15vh]"></div>
+            
+            <button id="restartFromResultBtn" class="btn-play shrink-0 !mt-0">CHƠI LẠI</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const startScreen = document.getElementById('startScreen');
+        const gameOverScreen = document.getElementById('gameOverScreen');
+        const hud = document.getElementById('hud');
+        const scoreDisplay = document.getElementById('scoreDisplay');
+        const livesDisplay = document.getElementById('livesDisplay');
+        const finalScore = document.getElementById('finalScore');
+        
+        const viewResultsBtn = document.getElementById('viewResultsBtn');
+        const resultsScreen = document.getElementById('resultsScreen');
+        const restartFromResultBtn = document.getElementById('restartFromResultBtn');
+        const resultCanvas = document.getElementById('resultCanvas');
+        const resultCtx = resultCanvas.getContext('2d');
+        const totalMetalsCount = document.getElementById('totalMetalsCount');
+        const dodgedNonMetalsCount = document.getElementById('dodgedNonMetalsCount');
+        const metalsList = document.getElementById('metalsList');
+
+        // --- HỆ THỐNG ÂM THANH (TONE.JS) ---
+        let audioInitialized = false;
+        let metalSound, errorSound;
+
+        async function initAudio() {
+            if (audioInitialized) return;
+            // Trình duyệt yêu cầu người dùng tương tác (click) mới cho phép bật AudioContext
+            await Tone.start(); 
+            
+            // Cấu hình âm thanh khi ăn Kim loại (Tiếng chuông lấp lánh/ma thuật)
+            metalSound = new Tone.PolySynth(Tone.Synth, {
+                oscillator: { type: 'sine' },
+                envelope: { attack: 0.01, decay: 0.1, sustain: 0.1, release: 0.5 }
+            }).toDestination();
+
+            // Cấu hình âm thanh khi đụng Phi kim (Tiếng nổ trầm/va đập)
+            errorSound = new Tone.MembraneSynth({
+                pitchDecay: 0.2,
+                octaves: 4,
+                oscillator: { type: 'square' },
+                envelope: { attack: 0.01, decay: 0.4, sustain: 0.01, release: 0.4 }
+            }).toDestination();
+
+            audioInitialized = true;
+        }
+
+        function playMetalSound() {
+            if (audioInitialized && metalSound) {
+                const now = Tone.now();
+                // Đánh một dải âm nhỏ liên tiếp để tạo cảm giác "bling bling"
+                metalSound.triggerAttackRelease("C6", "32n", now);
+                metalSound.triggerAttackRelease("E6", "32n", now + 0.05);
+                metalSound.triggerAttackRelease("G6", "16n", now + 0.1);
+            }
+        }
+
+        function playErrorSound() {
+            if (audioInitialized && errorSound) {
+                // Tiếng nổ bụp thấp (C2)
+                errorSound.triggerAttackRelease("C2", "8n");
+            }
+        }
+        // ------------------------------------
+
+        let cw, ch;
+        let animationId;
+        let gameActive = false;
+        let dodgedNonMetals = 0; // Biến đếm số phi kim đã né thành công
+        let allDodgedNonMetals = []; // Mảng lưu trữ các phi kim đã né
+
+        // Trạng thái game
+        let score = 0;
+        let lives = 4;
+        let frames = 0;
+        let difficultyMultiplier = 1;
+        let timeLeft = 60;
+        let timerId = null;
+
+        const elementsData = [
+            // Kim loại
+            { sym: 'Fe', name: 'Sắt', isMetal: true },
+            { sym: 'Cu', name: 'Đồng', isMetal: true },
+            { sym: 'Au', name: 'Vàng', isMetal: true },
+            { sym: 'Ag', name: 'Bạc', isMetal: true },
+            { sym: 'Na', name: 'Natri', isMetal: true },
+            { sym: 'Ca', name: 'Canxi', isMetal: true },
+            { sym: 'Mg', name: 'Magie', isMetal: true },
+            { sym: 'Zn', name: 'Kẽm', isMetal: true },
+            { sym: 'Al', name: 'Nhôm', isMetal: true },
+            { sym: 'K', name: 'Kali', isMetal: true },
+            { sym: 'Ba', name: 'Bari', isMetal: true },
+            { sym: 'Li', name: 'Liti', isMetal: true },
+            
+            // Phi kim
+            { sym: 'O', name: 'Oxy', isMetal: false },
+            { sym: 'C', name: 'Carbon', isMetal: false },
+            { sym: 'S', name: 'Lưu huỳnh', isMetal: false },
+            { sym: 'N', name: 'Nitơ', isMetal: false },
+            { sym: 'Cl', name: 'Clo', isMetal: false },
+            { sym: 'H', name: 'Hydro', isMetal: false },
+            { sym: 'P', name: 'Photpho', isMetal: false },
+            { sym: 'Br', name: 'Brom', isMetal: false },
+            { sym: 'I', name: 'Iot', isMetal: false },
+            { sym: 'F', name: 'Flo', isMetal: false },
+            { sym: 'He', name: 'Heli', isMetal: false }
+        ];
+
+        // Quản lý túi nguyên tố để không rớt trùng lặp
+        let elementPool = [];
+
+        function getNextElement() {
+            if (elementPool.length === 0) {
+                // Hết nguyên tố thì nạp lại và trộn ngẫu nhiên (Shuffle)
+                elementPool = [...elementsData].sort(() => Math.random() - 0.5);
+            }
+            return elementPool.pop(); // Lấy ra và xóa 1 phần tử
+        }
+
+        function resize() {
+            cw = canvas.width = window.innerWidth;
+            ch = canvas.height = window.innerHeight;
+            
+            // Tự động scale lại buồm/thuyền ở trang kết quả nếu người dùng xoay ngang màn hình điện thoại
+            if (resultsScreen && !resultsScreen.classList.contains('hidden')) {
+                const canvasWrapper = resultCanvas.parentElement;
+                if (canvasWrapper && canvasWrapper.clientWidth) {
+                    resultCanvas.width = canvasWrapper.clientWidth;
+                    resultCanvas.height = canvasWrapper.clientHeight;
+                    drawResultShip();
+                }
+            }
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        let stars = [];
+        let balloons = [];
+        let particles = [];
+        let floatingTexts = [];
+
+        // Đối tượng người chơi (Chiếc thuyền)
+        const player = {
+            x: cw / 2,
+            y: ch - 100,
+            width: 60,
+            height: 90,
+            targetX: cw / 2,
+            targetY: ch - 100,
+            speed: 0.15, // Smooth di chuyển
+            color: '#00ffff',
+            collectedElements: [], // Khoang chứa tạm thời khi đang bay (giới hạn 15 quả)
+            allCollectedElements: [] // Toàn bộ chiến lợi phẩm để hiển thị khi kết thúc
+        };
+
+        // Điều khiển (Input)
+        let keys = { ArrowLeft: false, ArrowRight: false, ArrowUp: false, ArrowDown: false, a: false, d: false, w: false, s: false };
+
+        window.addEventListener('keydown', (e) => {
+            if (keys.hasOwnProperty(e.key)) keys[e.key] = true;
+        });
+        window.addEventListener('keyup', (e) => {
+            if (keys.hasOwnProperty(e.key)) keys[e.key] = false;
+        });
+
+        // Hỗ trợ chuột và cảm ứng đa hướng
+        function updateTargetPos(clientX, clientY) {
+            if (!gameActive) return;
+            // Giới hạn trong màn hình
+            player.targetX = Math.max(player.width/2, Math.min(cw - player.width/2, clientX));
+            player.targetY = Math.max(player.height/2, Math.min(ch - player.height/2, clientY));
+        }
+
+        window.addEventListener('mousemove', (e) => updateTargetPos(e.clientX, e.clientY));
+        canvas.addEventListener('touchstart', (e) => updateTargetPos(e.touches[0].clientX, e.touches[0].clientY), {passive: false});
+        canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault(); // Ngăn cuộn
+            updateTargetPos(e.touches[0].clientX, e.touches[0].clientY);
+        }, {passive: false});
+
+        class Particle {
+            constructor(x, y, color, speedMultiplier = 1) {
+                this.x = x;
+                this.y = y;
+                this.size = Math.random() * 4 + 1;
+                this.speedX = (Math.random() * 6 - 3) * speedMultiplier;
+                this.speedY = (Math.random() * 6 - 3) * speedMultiplier;
+                this.color = color;
+                this.life = 1;
+                this.decay = Math.random() * 0.02 + 0.01;
+            }
+            update() {
+                this.x += this.speedX;
+                this.y += this.speedY;
+                this.life -= this.decay;
+                this.size *= 0.95;
+            }
+            draw() {
+                ctx.globalAlpha = this.life;
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.globalAlpha = 1;
+            }
+        }
+
+        class FloatingText {
+            constructor(x, y, text, color) {
+                this.x = x;
+                this.y = y;
+                this.text = text;
+                this.color = color;
+                this.life = 1;
+                this.speedY = -2;
+            }
+            update() {
+                this.y += this.speedY;
+                this.life -= 0.015;
+            }
+            draw() {
+                ctx.globalAlpha = Math.max(0, this.life);
+                ctx.fillStyle = this.color;
+                ctx.font = 'bold 24px Arial';
+                ctx.textAlign = 'center';
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = this.color;
+                ctx.fillText(this.text, this.x, this.y);
+                ctx.shadowBlur = 0; // Reset
+                ctx.globalAlpha = 1;
+            }
+        }
+
+        class Star {
+            constructor() {
+                this.x = Math.random() * cw;
+                this.y = Math.random() * ch;
+                this.size = Math.random() * 2;
+                this.speed = Math.random() * 3 + 1;
+                this.alpha = Math.random();
+            }
+            update() {
+                this.y += this.speed * difficultyMultiplier;
+                if (this.y > ch) {
+                    this.y = 0;
+                    this.x = Math.random() * cw;
+                }
+            }
+            draw() {
+                ctx.globalAlpha = this.alpha;
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.globalAlpha = 1;
+            }
+        }
+
+        class Balloon {
+            constructor() {
+                this.radius = 35;
+                this.x = Math.random() * (cw - this.radius * 2) + this.radius;
+                this.y = -this.radius;
+                this.speed = (Math.random() * 2 + 2) * difficultyMultiplier;
+                
+                // Chọn ngẫu nhiên 1 nguyên tố (Lấy từ Pool để KHÔNG TRÙNG lặp)
+                this.element = getNextElement();
+                
+                // Màu sắc bóng (hơi ngẫu nhiên để không quá dễ đoán bằng màu)
+                this.hue = Math.floor(Math.random() * 360);
+                this.color = `hsl(${this.hue}, 80%, 60%)`;
+                
+                this.wobble = Math.random() * Math.PI * 2;
+            }
+            update() {
+                this.y += this.speed;
+                // Hiệu ứng lắc lư nhẹ khi rơi
+                this.wobble += 0.05;
+                this.x += Math.sin(this.wobble) * 1.5;
+            }
+            draw() {
+                ctx.save();
+                
+                // Hiệu ứng bong bóng nước long lanh (Glow)
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = `hsl(${this.hue}, 100%, 70%)`;
+                
+                // Vẽ thân bóng nước với gradient siêu trong suốt và bắt sáng
+                let gradient = ctx.createRadialGradient(
+                    this.x - this.radius * 0.3, this.y - this.radius * 0.3, this.radius * 0.1, 
+                    this.x, this.y, this.radius
+                );
+                // Điểm bắt sáng chói ở góc trên trái
+                gradient.addColorStop(0, 'rgba(255, 255, 255, 0.95)');
+                // Màu sắc nhẹ nhàng lơ lửng bên trong
+                gradient.addColorStop(0.3, `hsla(${this.hue}, 80%, 60%, 0.25)`);
+                // Lớp nước trong suốt
+                gradient.addColorStop(0.7, 'rgba(255, 255, 255, 0.05)');
+                // Vành bong bóng bắt màu rực rỡ
+                gradient.addColorStop(1, `hsla(${this.hue}, 80%, 50%, 0.6)`);
+                
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = gradient;
+                ctx.fill();
+                
+                // Viền lấp lánh (vệt phản chiếu cong mỏng ở rìa)
+                ctx.lineWidth = 1.5;
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius - 1, Math.PI * 0.75, Math.PI * 2.25);
+                ctx.stroke();
+
+                // Đốm sáng tụ quang (Specular highlight) thêm phần "long lanh"
+                ctx.beginPath();
+                ctx.arc(this.x - this.radius * 0.4, this.y - this.radius * 0.4, this.radius * 0.15, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+                ctx.fill();
+                
+                // Chữ Ký hiệu Hóa học lơ lửng bên trong bóng nước
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 28px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                // Thêm viền đen nhỏ cho chữ dễ đọc
+                ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+                ctx.shadowBlur = 4;
+                ctx.fillText(this.element.sym, this.x, this.y);
+                
+                ctx.restore();
+            }
+        }
+
+        function initGame() {
+            score = 0;
+            lives = 4;
+            timeLeft = 60;
+            frames = 0;
+            dodgedNonMetals = 0; // Reset biến đếm phi kim
+            allDodgedNonMetals = []; // Reset mảng phi kim đã né
+            difficultyMultiplier = 1;
+            balloons = [];
+            particles = [];
+            floatingTexts = [];
+            stars = [];
+            elementPool = []; // Reset lại túi nguyên tố
+            
+            player.x = cw / 2;
+            player.y = ch - 100;
+            player.targetX = cw / 2;
+            player.targetY = ch - 100;
+            player.collectedElements = []; 
+            player.allCollectedElements = []; // Reset kho chiến lợi phẩm
+
+            for (let i = 0; i < 100; i++) {
+                stars.push(new Star());
+            }
+
+            // Xử lý đếm ngược thời gian
+            clearInterval(timerId);
+            timerId = setInterval(() => {
+                if (!gameActive) return;
+                timeLeft--;
+                updateHUD();
+                if (timeLeft <= 0) {
+                    gameOver("HẾT THỜI GIAN!");
+                }
+            }, 1000);
+
+            updateHUD();
+            startScreen.classList.add('hidden');
+            gameOverScreen.classList.add('hidden');
+            resultsScreen.classList.add('hidden');
+            hud.classList.remove('hidden');
+            
+            gameActive = true;
+            animate();
+        }
+
+        function updateHUD() {
+            scoreDisplay.innerText = score;
+            document.getElementById('timeDisplay').innerText = timeLeft + 's';
+            let hearts = '';
+            for(let i=0; i<lives; i++) hearts += '❤️';
+            livesDisplay.innerText = hearts || '💀';
+        }
+
+        function createExplosion(x, y, color, isBad) {
+            let count = isBad ? 30 : 15;
+            let speed = isBad ? 2 : 1;
+            for (let i = 0; i < count; i++) {
+                particles.push(new Particle(x, y, color, speed));
+            }
+        }
+
+        function checkCollisions() {
+            // Xem thuyền như một hình chữ nhật thu nhỏ để va chạm chuẩn xác hơn
+            const pRect = {
+                x: player.x - player.width/3,
+                y: player.y - player.height/2,
+                w: player.width * (2/3),
+                h: player.height
+            };
+
+            for (let i = balloons.length - 1; i >= 0; i--) {
+                let b = balloons[i];
+                
+                // Kiểm tra va chạm: Hình tròn (bóng) vs Hình chữ nhật (phi thuyền)
+                let distX = Math.abs(b.x - player.x);
+                let distY = Math.abs(b.y - player.y);
+
+                if (distX < (pRect.w/2 + b.radius * 0.8) && 
+                    distY < (pRect.h/2 + b.radius * 0.8)) {
+                    
+                    // Xử lý ăn bóng
+                    if (b.element.isMetal) {
+                        // Ăn ĐÚNG kim loại
+                        playMetalSound(); // Phát âm thanh thành công
+                        score += 10;
+                        createExplosion(b.x, b.y, '#00ff00', false);
+                        // Hiện chữ tên kim loại bay lên từ mũi thuyền
+                        floatingTexts.push(new FloatingText(player.x, player.y - player.height, `+10 ${b.element.name}`, '#00ff00'));
+                        
+                        // Thêm vào túi của thuyền với vị trí lộn xộn ngẫu nhiên
+                        player.collectedElements.push({
+                            sym: b.element.sym,
+                            color: b.color,
+                            // Vị trí rải rác bên trong chiếc túi lớn ở đuôi thuyền
+                            offsetX: (Math.random() * 40) - 20, // Tỏa ra hai bên
+                            offsetY: player.height/2 + 20 + (Math.random() * 45) // Trải dài xuống đáy túi
+                        });
+                        
+                        player.allCollectedElements.push({
+                            sym: b.element.sym,
+                            color: b.color
+                        });
+
+                        // Túi giờ chứa được rất nhiều (15 quả để nhẹ game lúc bay)
+                        if (player.collectedElements.length > 15) { 
+                            player.collectedElements.shift();
+                        }
+                    } else {
+                        // Ăn SAI phi kim
+                        playErrorSound(); // Phát âm thanh lỗi/nổ
+                        lives--;
+                        createExplosion(b.x, b.y, '#ff0000', true);
+                        floatingTexts.push(new FloatingText(player.x, player.y - player.height, `SAI! ${b.element.name}`, '#ff0000'));
+                        
+                        // Hiệu ứng rung màn hình nhẹ
+                        ctx.save();
+                        ctx.translate(Math.random()*10 - 5, Math.random()*10 - 5);
+                    }
+                    
+                    balloons.splice(i, 1);
+                    updateHUD();
+
+                    if (lives <= 0) {
+                        gameOver("Thuyền của bạn bị hỏng do nuốt quá 4 Phi Kim!");
+                    }
+                } else if (b.y - b.radius > ch) {
+                    // Bóng rơi khỏi màn hình
+                    if (!b.element.isMetal) {
+                         // Rơi mất phi kim tức là đã né thành công
+                         dodgedNonMetals++;
+                         // Lưu lại phi kim đã né để vẽ ra ngoài không gian lúc xem kết quả
+                         allDodgedNonMetals.push({
+                             sym: b.element.sym,
+                             color: b.color
+                         });
+                    }
+                    balloons.splice(i, 1);
+                }
+            }
+            if (lives <= 0) ctx.restore(); // Phục hồi ctx nếu đang rung màn hình do chết
+        }
+
+        function drawPlayer() {
+            ctx.save();
+            ctx.translate(player.x, player.y);
+            
+            // Nghiêng thuyền khi di chuyển
+            let tilt = (player.targetX - player.x) * 0.05;
+            tilt = Math.max(-0.4, Math.min(0.4, tilt)); // Giới hạn góc nghiêng
+            ctx.rotate(tilt);
+
+            // 1. Vẽ Túi trong suốt lớn (Bag) kéo lê ở đuôi thuyền
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = 'rgba(0, 255, 255, 0.6)';
+            ctx.fillStyle = 'rgba(180, 230, 255, 0.2)'; // Màu trong suốt như màng bọc/lưới
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+            ctx.lineWidth = 2;
+            
+            ctx.beginPath();
+            // Cột vào đuôi thuyền
+            ctx.moveTo(-15, player.height/2 - 10);
+            // Hình dáng cái túi phình to ra và trĩu xuống
+            ctx.bezierCurveTo(-55, player.height/2 + 20, -40, player.height/2 + 85, 0, player.height/2 + 85);
+            ctx.bezierCurveTo(40, player.height/2 + 85, 55, player.height/2 + 20, 15, player.height/2 - 10);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+
+            // Vẽ các bong bóng kim loại đã ăn bên TRONG túi
+            const cargo = player.collectedElements;
+            cargo.forEach(item => {
+                const ex = item.offsetX;
+                const ey = item.offsetY;
+
+                // Vẽ quả bóng thu nhỏ trong túi
+                ctx.beginPath();
+                ctx.arc(ex, ey, 8, 0, Math.PI * 2);
+                let grad = ctx.createRadialGradient(ex-3, ey-3, 1, ex, ey, 8);
+                grad.addColorStop(0, '#fff');
+                grad.addColorStop(0.5, item.color);
+                grad.addColorStop(1, 'rgba(255,255,255,0.6)');
+                ctx.fillStyle = grad;
+                ctx.fill();
+                
+                // Vẽ ký hiệu
+                ctx.fillStyle = '#000';
+                ctx.shadowBlur = 0;
+                ctx.font = 'bold 8px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(item.sym, ex, ey);
+            });
+
+            // 2. Vẽ Sóng/Gió phép thuật lướt qua thân túi
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = '#00ffff';
+            ctx.fillStyle = `rgba(150, 220, 255, ${Math.random()*0.5 + 0.1})`;
+            ctx.beginPath();
+            ctx.moveTo(-15, player.height/2 + 65);
+            ctx.lineTo(15, player.height/2 + 65);
+            ctx.lineTo(0, player.height/2 + 100 + Math.random()*20);
+            ctx.closePath();
+            ctx.fill();
+
+            // 3. Vẽ Thân thuyền (Cấu trúc gỗ) đè lên phần miệng túi
+            ctx.shadowBlur = 8;
+            ctx.shadowColor = '#5C3A21';
+            ctx.fillStyle = '#A0522D'; // Màu gỗ sienna
+            ctx.strokeStyle = '#3E2723'; // Gỗ viền đậm
+            ctx.lineWidth = 3;
+            
+            ctx.beginPath();
+            ctx.moveTo(0, -player.height/2 - 5); // Mũi thuyền nhọn
+            ctx.quadraticCurveTo(player.width/2 + 5, -player.height/4, player.width/2 - 10, player.height/2 - 5); // Mạn phải
+            ctx.lineTo(-player.width/2 + 10, player.height/2 - 5); // Đuôi thuyền
+            ctx.quadraticCurveTo(-player.width/2 - 5, -player.height/4, 0, -player.height/2 - 5); // Mạn trái
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+
+            // Vẽ các đường ván gỗ dọc theo thân thuyền
+            ctx.strokeStyle = '#6B4226';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(0, -player.height/2 + 10);
+            ctx.lineTo(0, player.height/2 - 5);
+            ctx.moveTo(-player.width/4 + 2, -player.height/4);
+            ctx.lineTo(-player.width/4 + 2, player.height/2 - 5);
+            ctx.moveTo(player.width/4 - 2, -player.height/4);
+            ctx.lineTo(player.width/4 - 2, player.height/2 - 5);
+            ctx.stroke();
+
+            // 4. Vẽ Cột buồm
+            ctx.fillStyle = '#3E2723';
+            ctx.fillRect(-2, -player.height/2 + 10, 4, player.height/2);
+
+            // 5. Vẽ Cánh buồm
+            ctx.shadowBlur = 5;
+            ctx.shadowColor = '#ffffff';
+            ctx.fillStyle = 'rgba(240, 248, 255, 0.95)'; // Màu trắng ngà
+            ctx.beginPath();
+            ctx.moveTo(0, -player.height/2 + 10); // Đỉnh buồm
+            ctx.quadraticCurveTo(player.width - 5, -5, 0, player.height/4 - 5); // Căng gió sang phải
+            ctx.quadraticCurveTo(-5, -5, 0, -player.height/2 + 10); // Đường cong nhẹ cột buồm
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.restore();
+        }
+
+        function animate() {
+            if (!gameActive) return;
+            
+            // Xóa canvas
+            ctx.clearRect(0, 0, cw, ch);
+
+            // Xử lý di chuyển bằng bàn phím
+            let moveSpeed = 7;
+            if (keys.ArrowLeft || keys.a) player.targetX -= moveSpeed;
+            if (keys.ArrowRight || keys.d) player.targetX += moveSpeed;
+            if (keys.ArrowUp || keys.w) player.targetY -= moveSpeed;
+            if (keys.ArrowDown || keys.s) player.targetY += moveSpeed;
+            
+            // Giới hạn target trong màn hình
+            player.targetX = Math.max(player.width/2, Math.min(cw - player.width/2, player.targetX));
+            player.targetY = Math.max(player.height/2, Math.min(ch - player.height/2, player.targetY));
+
+            // Smooth movement (nội suy vị trí)
+            player.x += (player.targetX - player.x) * player.speed;
+            player.y += (player.targetY - player.y) * player.speed;
+
+            // Cập nhật và vẽ Nền sao
+            stars.forEach(star => {
+                star.update();
+                star.draw();
+            });
+
+            // Tăng độ khó theo thời gian
+            frames++;
+            if (frames % 600 === 0) {
+                difficultyMultiplier += 0.1;
+            }
+
+            // Sinh ra bong bóng mới
+            let spawnRate = Math.max(30, 80 - Math.floor(difficultyMultiplier * 10)); // Càng về sau càng ra nhanh
+            if (frames % spawnRate === 0) {
+                balloons.push(new Balloon());
+            }
+
+            // Cập nhật và vẽ Bong bóng
+            balloons.forEach(b => {
+                b.update();
+                b.draw();
+            });
+
+            // Cập nhật và vẽ Hiệu ứng nổ
+            for (let i = particles.length - 1; i >= 0; i--) {
+                let p = particles[i];
+                p.update();
+                p.draw();
+                if (p.life <= 0) particles.splice(i, 1);
+            }
+
+            // Cập nhật và vẽ Chữ bay lên từ phi thuyền
+            for (let i = floatingTexts.length - 1; i >= 0; i--) {
+                let ft = floatingTexts[i];
+                ft.update();
+                ft.draw();
+                if (ft.life <= 0) floatingTexts.splice(i, 1);
+            }
+
+            // Vẽ Chiếc Thuyền
+            drawPlayer();
+
+            // Xử lý va chạm
+            checkCollisions();
+
+            if (gameActive) {
+                animationId = requestAnimationFrame(animate);
+            }
+        }
+
+        function gameOver(reasonText = "Thuyền của bạn bị hỏng do nuốt quá 4 Phi Kim!") {
+            gameActive = false;
+            cancelAnimationFrame(animationId);
+            clearInterval(timerId); // Dừng đồng hồ đếm ngược
+            hud.classList.add('hidden');
+            gameOverScreen.classList.remove('hidden');
+            finalScore.innerText = score;
+            document.getElementById('gameOverReason').innerText = reasonText;
+        }
+
+        // Hàm yêu cầu mở Fullscreen (Toàn màn hình)
+        function openFullscreen() {
+            const elem = document.documentElement;
+            if (elem.requestFullscreen) {
+                elem.requestFullscreen().catch(err => console.log(err));
+            } else if (elem.webkitRequestFullscreen) { /* Safari */
+                elem.webkitRequestFullscreen().catch(err => console.log(err));
+            } else if (elem.msRequestFullscreen) { /* IE11 */
+                elem.msRequestFullscreen().catch(err => console.log(err));
+            }
+        }
+
+        // Gắn sự kiện cho các nút kèm theo hiệu ứng Toàn màn hình và Bật Âm thanh
+        document.getElementById('startBtn').addEventListener('click', async () => {
+            await initAudio(); // Khởi động engine âm thanh
+            openFullscreen();
+            initGame();
+        });
+        
+        document.getElementById('restartBtn').addEventListener('click', async () => {
+            await initAudio();
+            openFullscreen();
+            initGame();
+        });
+        
+        restartFromResultBtn.addEventListener('click', async () => {
+            await initAudio();
+            openFullscreen();
+            initGame();
+        });
+
+        viewResultsBtn.addEventListener('click', () => {
+            gameOverScreen.classList.add('hidden');
+            resultsScreen.classList.remove('hidden');
+            
+            // Hiện số lượng
+            totalMetalsCount.innerText = player.allCollectedElements.length;
+            dodgedNonMetalsCount.innerText = dodgedNonMetals;
+            
+            // Thống kê đếm số nguyên tố
+            metalsList.innerHTML = '';
+            let counts = {};
+            player.allCollectedElements.forEach(el => {
+                counts[el.sym] = (counts[el.sym] || 0) + 1;
+            });
+            for(let sym in counts) {
+                let span = document.createElement('span');
+                span.className = 'px-5 py-2 bg-slate-800 border-2 border-purple-500 rounded-full text-xl sm:text-2xl text-cyan-300 font-extrabold shadow-[0_0_10px_purple] m-1';
+                span.innerText = `${sym}: ${counts[sym]}`;
+                metalsList.appendChild(span);
+            }
+
+            // Cập nhật kích thước canvas kết quả cho khớp với khung hiển thị to trên màn hình
+            const canvasWrapper = resultCanvas.parentElement;
+            resultCanvas.width = canvasWrapper.clientWidth;
+            resultCanvas.height = canvasWrapper.clientHeight;
+
+            drawResultShip();
+        });
+
+        function drawResultShip() {
+            resultCtx.clearRect(0, 0, resultCanvas.width, resultCanvas.height);
+            
+            allDodgedNonMetals.forEach(item => {
+                // Rải ngẫu nhiên các bong bóng ra xung quanh không gian, tránh tập trung quá nhiều ở giữa
+                let rx, ry;
+                if (Math.random() > 0.5) {
+                    rx = Math.random() * (resultCanvas.width * 0.35); // Cụm bên trái
+                } else {
+                    rx = resultCanvas.width * 0.65 + Math.random() * (resultCanvas.width * 0.35); // Cụm bên phải
+                }
+                ry = Math.random() * resultCanvas.height;
+                
+                let r = Math.random() * 15 + 20; // Bán kính ngẫu nhiên cho bóng phi kim
+                
+                // Vẽ bóng nước phi kim (hơi mờ hơn một chút để tạo cảm giác ở xa)
+                resultCtx.beginPath();
+                resultCtx.arc(rx, ry, r, 0, Math.PI * 2);
+                let grad = resultCtx.createRadialGradient(rx - r*0.3, ry - r*0.3, r*0.1, rx, ry, r);
+                grad.addColorStop(0, 'rgba(255, 255, 255, 0.6)');
+                grad.addColorStop(0.4, item.color);
+                grad.addColorStop(1, 'rgba(255, 255, 255, 0.1)');
+                
+                resultCtx.fillStyle = grad;
+                resultCtx.fill();
+                
+                // Viền bóng
+                resultCtx.lineWidth = 1;
+                resultCtx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+                resultCtx.stroke();
+
+                // Chữ ký hiệu phi kim
+                resultCtx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+                resultCtx.shadowColor = 'rgba(0,0,0,0.8)';
+                resultCtx.shadowBlur = 3;
+                resultCtx.font = `bold ${r*0.9}px Arial`;
+                resultCtx.textAlign = 'center';
+                resultCtx.textBaseline = 'middle';
+                resultCtx.fillText(item.sym, rx, ry);
+                resultCtx.shadowBlur = 0; // Reset shadow
+            });
+
+            resultCtx.save();
+            
+            // Túi phình to tùy theo lượng bóng đã nhặt
+            const cargoCount = player.allCollectedElements.length;
+            const bagScale = Math.min(4.5, 1 + cargoCount * 0.05); 
+            
+            // Tính toán tâm của chiếc túi để "đưa camera" (focus) thẳng vào đó
+            const bagCenterY = player.height/2 + 15 + (40 * bagScale);
+            const bagWidth = 140 * bagScale;
+            const bagHeight = 140 * bagScale;
+
+            // Tính toán tỷ lệ phóng to để chiếc túi CĂNG TRÀN màn hình canvas
+            // Giúp nhìn thật rõ từng bong bóng kim loại bên trong
+            const scaleFactor = Math.min(resultCanvas.width / bagWidth, resultCanvas.height / bagHeight) * 0.9;
+            
+            // Dịch chuyển gốc tọa độ ra giữa canvas
+            resultCtx.translate(resultCanvas.width / 2, resultCanvas.height / 2);
+            resultCtx.scale(scaleFactor, scaleFactor); 
+            
+            // Dịch chuyển bản vẽ ngược lên trên để trung tâm chiếc túi nằm ngay giữa màn hình
+            resultCtx.translate(0, -bagCenterY);
+
+            // 1. Vẽ túi (Làm nét nổi bật hơn)
+            resultCtx.shadowBlur = 20;
+            resultCtx.shadowColor = 'rgba(0, 255, 255, 0.8)';
+            resultCtx.fillStyle = 'rgba(180, 230, 255, 0.25)';
+            resultCtx.strokeStyle = 'rgba(255, 255, 255, 1)';
+            
+            // Chống nét vẽ quá dày khi zoom quá to
+            let dynamicLineWidth = 3 / scaleFactor;
+            if (dynamicLineWidth < 1) dynamicLineWidth = 1;
+            resultCtx.lineWidth = dynamicLineWidth; 
+            
+            resultCtx.beginPath();
+            resultCtx.moveTo(-15, player.height/2 - 10);
+            resultCtx.bezierCurveTo(-65 * bagScale, player.height/2 + 20, -50 * bagScale, player.height/2 + 95 * bagScale, 0, player.height/2 + 95 * bagScale);
+            resultCtx.bezierCurveTo(50 * bagScale, player.height/2 + 95 * bagScale, 65 * bagScale, player.height/2 + 20, 15, player.height/2 - 10);
+            resultCtx.closePath();
+            resultCtx.fill();
+            resultCtx.stroke();
+
+            // Vẽ toàn bộ bóng vào chiếc túi khổng lồ
+            player.allCollectedElements.forEach((item) => {
+                let ex = (Math.random() * 80 * bagScale) - (40 * bagScale);
+                let ey = bagCenterY + (Math.random() * 80 * bagScale) - (40 * bagScale);
+                
+                // Thuật toán nhỏ để giữ các quả bóng không bị lọt ra rìa ngoài của túi
+                const dx = ex;
+                const dy = ey - bagCenterY;
+                const distance = Math.sqrt(dx*dx + dy*dy);
+                
+                const ballRadius = 16; // Kích thước quả bóng
+                
+                // Bán kính giới hạn của túi trừ đi bán kính quả bóng để bóng không đè lên viền
+                const maxRadius = (48 * bagScale) - ballRadius; 
+                const safeRadius = Math.max(0, maxRadius);
+                
+                if (distance > safeRadius) {
+                    const ratio = safeRadius / distance;
+                    ex = dx * ratio;
+                    ey = bagCenterY + dy * ratio;
+                }
+                
+                // Vẽ thân quả bóng to hơn
+                resultCtx.beginPath();
+                resultCtx.arc(ex, ey, ballRadius, 0, Math.PI * 2);
+                let grad = resultCtx.createRadialGradient(ex-4, ey-4, 2, ex, ey, ballRadius);
+                grad.addColorStop(0, '#fff');
+                grad.addColorStop(0.5, item.color);
+                grad.addColorStop(1, 'rgba(255,255,255,0.7)');
+                resultCtx.fillStyle = grad;
+                resultCtx.fill();
+                
+                // Thêm viền trắng mỏng để tách biệt các quả bóng khi chúng xếp đè lên nhau
+                resultCtx.lineWidth = 1.5 / scaleFactor;
+                resultCtx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+                resultCtx.stroke();
+                
+                // Chữ to, đậm và rõ ràng hơn
+                resultCtx.fillStyle = '#000';
+                resultCtx.shadowBlur = 0;
+                resultCtx.font = 'bold 15px Arial';
+                resultCtx.textAlign = 'center';
+                resultCtx.textBaseline = 'middle';
+                resultCtx.fillText(item.sym, ex, ey);
+            });
+
+            // 2. Vẽ thân thuyền (sẽ nằm lấp ló ở mép trên màn hình)
+            resultCtx.shadowBlur = 8;
+            resultCtx.shadowColor = '#5C3A21';
+            resultCtx.fillStyle = '#A0522D'; 
+            resultCtx.strokeStyle = '#3E2723'; 
+            resultCtx.lineWidth = dynamicLineWidth;
+            
+            resultCtx.beginPath();
+            resultCtx.moveTo(0, -player.height/2 - 5); 
+            resultCtx.quadraticCurveTo(player.width/2 + 5, -player.height/4, player.width/2 - 10, player.height/2 - 5); 
+            resultCtx.lineTo(-player.width/2 + 10, player.height/2 - 5); 
+            resultCtx.quadraticCurveTo(-player.width/2 - 5, -player.height/4, 0, -player.height/2 - 5); 
+            resultCtx.closePath();
+            resultCtx.fill();
+            resultCtx.stroke();
+
+            // Vẽ Cột và Cánh buồm
+            resultCtx.fillStyle = '#3E2723';
+            resultCtx.fillRect(-2, -player.height/2 + 10, 4, player.height/2);
+
+            resultCtx.shadowBlur = 5;
+            resultCtx.shadowColor = '#ffffff';
+            resultCtx.fillStyle = 'rgba(240, 248, 255, 0.95)';
+            resultCtx.beginPath();
+            resultCtx.moveTo(0, -player.height/2 + 10); 
+            resultCtx.quadraticCurveTo(player.width - 5, -5, 0, player.height/4 - 5); 
+            resultCtx.quadraticCurveTo(-5, -5, 0, -player.height/2 + 10); 
+            resultCtx.closePath();
+            resultCtx.fill();
+
+            resultCtx.restore();
+        }
+
+        // Vẽ màn hình nền trống ban đầu khi chưa bấm bắt đầu
+        function drawIdleScreen() {
+            ctx.clearRect(0, 0, cw, ch);
+            if(stars.length === 0){
+                 for (let i = 0; i < 100; i++) stars.push(new Star());
+            }
+            stars.forEach(star => {
+                star.y += star.speed * 0.5;
+                if (star.y > ch) star.y = 0;
+                star.draw();
+            });
+            if(!gameActive) requestAnimationFrame(drawIdleScreen);
+        }
+        drawIdleScreen();
+
+    </script>
+</body>
+</html>
